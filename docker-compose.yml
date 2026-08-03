@@ -1,0 +1,6 @@
+services:
+  web:
+    build: .
+    container_name: caixa_frontend
+    restart: unless-stopped
+    network_mode: host
