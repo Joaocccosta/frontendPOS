@@ -250,7 +250,7 @@ function EventScreen() {
     })
   }
 
-  async function handleConfirmOrder({ paymentMethod, amountReceived }) {
+  async function handleConfirmOrder({ paymentMethod, amountReceived, table, name }) {
     const customItems = activeItems.filter((item) => item.isCustom)
     for (const item of customItems) {
       await api.patch(`/products/${item.productId}/activate`)
@@ -259,6 +259,8 @@ function EventScreen() {
       items: activeItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
       paymentMethod,
       amountReceived: paymentMethod === 'CASH' ? amountReceived : undefined,
+      table: isTableMode ? selectedTable?.table : table,
+      name: isTableMode ? selectedTable?.name : name,
     })
     customItems.forEach((item) => deleteProductSilently(item.productId))
     if (isTableMode) {
@@ -401,7 +403,12 @@ function EventScreen() {
       </div>
 
       {showConfirm && (
-        <ConfirmOrderModal total={total} onCancel={() => setShowConfirm(false)} onConfirm={handleConfirmOrder} />
+        <ConfirmOrderModal
+          total={total}
+          showTableFields={!isTableMode}
+          onCancel={() => setShowConfirm(false)}
+          onConfirm={handleConfirmOrder}
+        />
       )}
       {showOther && <OtherItemModal onCancel={() => setShowOther(false)} onConfirm={handleAddOther} />}
       {showTableForm && (

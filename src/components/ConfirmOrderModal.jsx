@@ -7,9 +7,11 @@ const PAYMENT_METHODS = {
   MULTIBANCO: 'MULTIBANCO',
 }
 
-function ConfirmOrderModal({ total, onCancel, onConfirm }) {
+function ConfirmOrderModal({ total, showTableFields = false, onCancel, onConfirm }) {
   const [method, setMethod] = useState(null)
   const [amountReceivedText, setAmountReceivedText] = useState('')
+  const [table, setTable] = useState('')
+  const [name, setName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
@@ -32,11 +34,12 @@ function ConfirmOrderModal({ total, onCancel, onConfirm }) {
   async function handleConfirm() {
     setSubmitting(true)
     setError(null)
+    const tableFields = { table: table.trim() || undefined, name: name.trim() || undefined }
     try {
       if (method === PAYMENT_METHODS.CASH) {
-        await onConfirm({ paymentMethod: PAYMENT_METHODS.CASH, amountReceived })
+        await onConfirm({ paymentMethod: PAYMENT_METHODS.CASH, amountReceived, ...tableFields })
       } else {
-        await onConfirm({ paymentMethod: PAYMENT_METHODS.MULTIBANCO })
+        await onConfirm({ paymentMethod: PAYMENT_METHODS.MULTIBANCO, ...tableFields })
       }
     } catch (err) {
       setError(err.message || 'Ocorreu um erro ao finalizar a compra.')
@@ -54,6 +57,28 @@ function ConfirmOrderModal({ total, onCancel, onConfirm }) {
 
         {method === null && (
           <>
+            {showTableFields && (
+              <div className="mt-6 flex gap-3">
+                <label className="flex-1 text-sm font-medium text-gray-600">
+                  Mesa (opcional)
+                  <input
+                    value={table}
+                    onChange={(e) => setTable(e.target.value)}
+                    placeholder="Ex: 5"
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-emerald-500 focus:outline-none"
+                  />
+                </label>
+                <label className="flex-1 text-sm font-medium text-gray-600">
+                  Nome (opcional)
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ex: João Silva"
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-emerald-500 focus:outline-none"
+                  />
+                </label>
+              </div>
+            )}
             <p className="mt-6 text-center text-sm font-medium text-gray-500">Método de pagamento</p>
             <div className="mt-3 flex gap-3">
               <button
