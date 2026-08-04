@@ -9,6 +9,16 @@ function CartItem({ item, onIncrement, onDecrement, onRemove }) {
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-gray-800">
           {item.name} x{item.quantity}
+          {item.isKitchen && (
+            <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+              Cozinha
+            </span>
+          )}
+          {item.isBar && (
+            <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+              Bar
+            </span>
+          )}
         </p>
         <p className="text-sm text-gray-500">{formatPrice(subtotal)}</p>
       </div>

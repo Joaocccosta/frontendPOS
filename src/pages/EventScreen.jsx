@@ -46,6 +46,8 @@ function EventScreen() {
         quantity: item.quantity,
         cartItemId: item.id,
         isCustom: item.nameSnapshot === 'Outro',
+        isKitchen: item.isKitchen,
+        isBar: item.isBar,
       }))
     : cart
 
@@ -123,7 +125,17 @@ function EventScreen() {
           item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item,
         )
       }
-      return [...prev, { productId: product.id, name: product.name, unitPrice: product.price, quantity: 1 }]
+      return [
+        ...prev,
+        {
+          productId: product.id,
+          name: product.name,
+          unitPrice: product.price,
+          quantity: 1,
+          isKitchen: product.station === 'KITCHEN',
+          isBar: product.station === 'BAR',
+        },
+      ]
     })
   }
 
@@ -144,7 +156,7 @@ function EventScreen() {
     } else {
       setCart((prev) => [
         ...prev,
-        { productId: created.id, name: 'Outro', unitPrice: value, quantity: 1, isCustom: true },
+        { productId: created.id, name: 'Outro', unitPrice: value, quantity: 1, isCustom: true, isKitchen: false, isBar: false },
       ])
     }
     try {
