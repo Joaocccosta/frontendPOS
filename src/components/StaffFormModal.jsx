@@ -23,7 +23,7 @@ function StaffFormModal({ staff, onCancel, onSubmit }) {
   const [error, setError] = useState(null)
   const [created, setCreated] = useState(null)
 
-  const isValid = fullName.trim() && role && (isEditing || (email.trim() && password.length >= 8))
+  const isValid = fullName.trim() && role && (isEditing || (email.trim() && password))
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -76,7 +76,7 @@ function StaffFormModal({ staff, onCancel, onSubmit }) {
               <label className="mt-4 block text-sm font-medium text-gray-600">
                 Email
                 <input
-                  type="email"
+                  type="text"
                   required
                   autoFocus
                   value={email}
@@ -103,13 +103,12 @@ function StaffFormModal({ staff, onCancel, onSubmit }) {
                 <input
                   type="text"
                   required
-                  minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-3 text-lg focus:border-emerald-500 focus:outline-none"
                 />
                 <span className="mt-1 block text-xs text-gray-400">
-                  Mínimo 8 caracteres. A pessoa terá de a alterar no primeiro acesso.
+                  A pessoa terá de a alterar no primeiro acesso.
                 </span>
               </label>
             )}
