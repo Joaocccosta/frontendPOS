@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ShoppingCart, Trash2, UtensilsCrossed } from 'lucide-react'
 import { api } from '../api/client'
@@ -35,6 +35,41 @@ function EventScreen() {
   const [tables, setTables] = useState([])
   const [selectedTableId, setSelectedTableId] = useState(null)
   const [showTableForm, setShowTableForm] = useState(false)
+
+  // Always-current snapshot of `tables`, so queued cart mutations (below) can read
+  // the freshest state instead of the stale closure captured when they were queued.
+  const tablesRef = useRef(tables)
+  useEffect(() => {
+    tablesRef.current = tables
+  }, [tables])
+
+  // Cart edits for a table (add/increment/decrement/remove) each read the current
+  // items, then await a network round-trip before the resulting state lands. Two
+  // rapid clicks (e.g. double-tapping a product) would otherwise both read the same
+  // stale "before" state and race — e.g. two clicks adding the same new product both
+  // see "not in cart yet" and both POST, creating two quantity-1 rows instead of one
+  // quantity-2 row. Queuing serializes them so each mutation sees the previous one's result.
+  const cartMutationQueueRef = useRef(Promise.resolve())
+
+  function enqueueCartMutation(tableId, mutate) {
+    const run = async () => {
+      const table = tablesRef.current.find((t) => t.id === tableId)
+      const items = (table?.items ?? []).map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        cartItemId: item.id,
+        isCustom: item.nameSnapshot === 'Outro',
+      }))
+      try {
+        const updated = await mutate(items)
+        if (updated) applyCartUpdate(updated)
+      } catch (err) {
+        setError(err.message)
+      }
+    }
+    cartMutationQueueRef.current = cartMutationQueueRef.current.then(run)
+    return cartMutationQueueRef.current
+  }
 
   const isTableMode = mode === 'mesas' && selectedTableId != null
   const selectedTable = isTableMode ? tables.find((t) => t.id === selectedTableId) : null
@@ -104,18 +139,16 @@ function EventScreen() {
 
   async function handleAddToCart(product) {
     if (isTableMode) {
-      const existing = activeItems.find((item) => item.productId === product.id)
-      try {
-        const updated = existing
-          ? await api.put(`/carts/${selectedTable.id}/items/${existing.cartItemId}`, {
+      const tableId = selectedTable.id
+      enqueueCartMutation(tableId, (items) => {
+        const existing = items.find((item) => item.productId === product.id)
+        return existing
+          ? api.put(`/carts/${tableId}/items/${existing.cartItemId}`, {
               productId: product.id,
               quantity: existing.quantity + 1,
             })
-          : await api.post(`/carts/${selectedTable.id}/items`, { productId: product.id, quantity: 1 })
-        applyCartUpdate(updated)
-      } catch (err) {
-        setError(err.message)
-      }
+          : api.post(`/carts/${tableId}/items`, { productId: product.id, quantity: 1 })
+      })
       return
     }
     setCart((prev) => {
@@ -147,12 +180,9 @@ function EventScreen() {
       sortOrder: 0,
     })
     if (isTableMode) {
-      try {
-        const updated = await api.post(`/carts/${selectedTable.id}/items`, { productId: created.id, quantity: 1 })
-        applyCartUpdate(updated)
-      } catch (err) {
-        setError(err.message)
-      }
+      enqueueCartMutation(selectedTable.id, () =>
+        api.post(`/carts/${selectedTable.id}/items`, { productId: created.id, quantity: 1 }),
+      )
     } else {
       setCart((prev) => [
         ...prev,
@@ -169,17 +199,15 @@ function EventScreen() {
 
   async function handleIncrement(productId) {
     if (isTableMode) {
-      const item = activeItems.find((i) => i.productId === productId)
-      if (!item) return
-      try {
-        const updated = await api.put(`/carts/${selectedTable.id}/items/${item.cartItemId}`, {
+      const tableId = selectedTable.id
+      enqueueCartMutation(tableId, (items) => {
+        const item = items.find((i) => i.productId === productId)
+        if (!item) return null
+        return api.put(`/carts/${tableId}/items/${item.cartItemId}`, {
           productId,
           quantity: item.quantity + 1,
         })
-        applyCartUpdate(updated)
-      } catch (err) {
-        setError(err.message)
-      }
+      })
       return
     }
     setCart((prev) =>
@@ -189,23 +217,19 @@ function EventScreen() {
 
   async function handleDecrement(productId) {
     if (isTableMode) {
-      const item = activeItems.find((i) => i.productId === productId)
-      if (!item) return
-      try {
-        let updated
+      const tableId = selectedTable.id
+      enqueueCartMutation(tableId, (items) => {
+        const item = items.find((i) => i.productId === productId)
+        if (!item) return null
         if (item.quantity <= 1) {
-          updated = await api.delete(`/carts/${selectedTable.id}/items/${item.cartItemId}`)
           if (item.isCustom) deleteProductSilently(item.productId)
-        } else {
-          updated = await api.put(`/carts/${selectedTable.id}/items/${item.cartItemId}`, {
-            productId,
-            quantity: item.quantity - 1,
-          })
+          return api.delete(`/carts/${tableId}/items/${item.cartItemId}`)
         }
-        applyCartUpdate(updated)
-      } catch (err) {
-        setError(err.message)
-      }
+        return api.put(`/carts/${tableId}/items/${item.cartItemId}`, {
+          productId,
+          quantity: item.quantity - 1,
+        })
+      })
       return
     }
     const target = cart.find((item) => item.productId === productId)
@@ -219,15 +243,13 @@ function EventScreen() {
 
   async function handleRemove(productId) {
     if (isTableMode) {
-      const item = activeItems.find((i) => i.productId === productId)
-      if (!item) return
-      try {
-        const updated = await api.delete(`/carts/${selectedTable.id}/items/${item.cartItemId}`)
+      const tableId = selectedTable.id
+      enqueueCartMutation(tableId, (items) => {
+        const item = items.find((i) => i.productId === productId)
+        if (!item) return null
         if (item.isCustom) deleteProductSilently(item.productId)
-        applyCartUpdate(updated)
-      } catch (err) {
-        setError(err.message)
-      }
+        return api.delete(`/carts/${tableId}/items/${item.cartItemId}`)
+      })
       return
     }
     const target = cart.find((item) => item.productId === productId)
